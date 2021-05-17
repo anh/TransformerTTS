@@ -9,4 +9,4 @@ _phonemes = sorted(list(
 _punctuations = '!,-.:;? \'()'
 _alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzäüößÄÖÜ'
 
-all_phonemes = sorted(list(_phonemes) + list(_punctuations))
+all_phonemes = sorted(list(_phonemes) + list(_punctuations) + list("0123456789"))
