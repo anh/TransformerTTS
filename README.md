@@ -83,24 +83,27 @@ Or in a python script
 from data.audio import Audio
 from model.factory import tts_ljspeech
 
-model, config = tts_ljspeech()
-audio = Audio(config)
+model = tts_ljspeech()
+audio = Audio.from_config(model.config)
 out = model.predict('Please, say something.')
 
 # Convert spectrogram to wav (with griffin lim)
 wav = audio.reconstruct_waveform(out['mel'].numpy().T)
 ```
 
+You can specify the model step with the `--step` flag (CL) or `step` parameter (script).<br>
+Steps from 60000 to 100000 are available at a frequency of 5K steps (60000, 65000, ..., 95000, 100000).
+
 <b>IMPORTANT:</b> make sure to checkout the correct repository version to use the API.<br>
-Currently c6d5775e549666e2461054d89002bef680fe2f09
+Currently 493be6345341af0df3ae829de79c2793c9afd0ec
 
 ## Dataset
 You can directly use [LJSpeech](https://keithito.com/LJ-Speech-Dataset/) to create the training dataset.
 
 #### Configuration
-* If training on LJSpeech, or if unsure, simply use ```config/session_paths.yaml``` to create [MelGAN](https://github.com/seungwonpark/melgan) compatible models
-    * swap ```data_config.yaml``` for ```data_config_wavernn.yaml``` to create models compatible with [WaveRNN](https://github.com/fatchord/WaveRNN) 
-* **EDIT PATHS**: in `config/session_paths.yaml` edit the paths to point at your dataset and log folders
+* If training on LJSpeech, or if unsure, simply use ```config/training_config.yaml``` to create [MelGAN](https://github.com/seungwonpark/melgan) or [HiFiGAN](https://github.com/jik876/hifi-gan) compatible models
+    * swap the content of ```data_config_wavernn.yaml``` in ```config/training_config.yaml``` to create models compatible with [WaveRNN](https://github.com/fatchord/WaveRNN) 
+* **EDIT PATHS**: in `config/training_config.yaml` edit the paths to point at your dataset and log folders
 
 #### Custom dataset
 Prepare a folder containing your metadata and wav files, for instance
@@ -116,34 +119,34 @@ if `metadata.csv` has the following format
 you can use the ljspeech preprocessor in ```data/metadata_readers.py```, otherwise add your own under the same file.
 
 Make sure that:
- -  the metadata reader function name is the same as ```data_name``` field in ```session_paths.yaml```.
- -  the metadata file (can be anything) is specified under ```metadata_path``` in ```session_paths.yaml``` 
+ -  the metadata reader function name is the same as ```data_name``` field in ```training_config.yaml```.
+ -  the metadata file (can be anything) is specified under ```metadata_path``` in ```training_config.yaml``` 
 
 ## Training
 Change the ```--config``` argument based on the configuration of your choice.
 ### Train Aligner Model
 #### Create training dataset
 ```bash
-python create_training_data.py --config config/session_paths.yaml
+python create_training_data.py --config config/training_config.yaml
 ```
 This will populate the training data directory (default `transformer_tts_data.ljspeech`).
 #### Training
 ```bash
-python train_aligner.py --config config/session_paths.yaml
+python train_aligner.py --config config/training_config.yaml
 ```
 ### Train TTS Model
 #### Compute alignment dataset
 First use the aligner model to create the durations dataset
 ```bash
-python extract_durations.py --config config/session_paths.yaml
+python extract_durations.py --config config/training_config.yaml
 ```
 this will add the `durations.<session name>` as well as the char-wise pitch folders to the training data directory.
 #### Training
 ```bash
-python train_tts.py --config config/session_paths.yaml
+python train_tts.py --config config/training_config.yaml
 ```
 #### Training & Model configuration
-- Training and model settings can be configured in `<model>_config.yaml`
+- Training and model settings can be configured in `training_config.yaml`
 
 #### Resume or restart training
 - To resume training simply use the same configuration files
@@ -155,53 +158,31 @@ tensorboard --logdir /logs/directory/
 ```
 
 ![Tensorboard Demo](https://raw.githubusercontent.com/as-ideas/TransformerTTS/master/docs/tboard_demo.gif)
-#### Checkpoint to hdf5 weights \[optional\]
-You can convert the checkpoint files to hdf5 model weights by running
-```bash
-python checkpoints_to_weights.py --config config/session_paths.yaml
-```
 ## Prediction
-### With training checkpoints
-From command line with
-```commandline
-python predict_tts.py -t "Please, say something." --config config/session_paths.yaml
-```
-Or in a python script
-```python
-from utils.config_manager import Config
-from data.audio import Audio
-
-config_loader = Config(config_path=f'config/session_paths.yaml')
-audio = Audio(config_loader.config)
-model = config_loader.load_model() # optional: can specify checkpoint name
-out = model.predict('Please, say something.')
-
-# Convert spectrogram to wav (with griffin lim)
-wav = audio.reconstruct_waveform(out['mel'].numpy().T)
-```
 ### With model weights
 From command line with
 ```commandline
-python predict_tts.py -t "Please, say something." -c config/session_paths.yaml -w path/to/model_weights.hdf5
+python predict_tts.py -t "Please, say something." -p /path/to/weights/
 ```
 Or in a python script
 ```python
+from model.models import ForwardTransformer
 from data.audio import Audio
-from model.factory import tts_custom
-
-model, config = tts_custom(config_path='path/to/config.yaml', 
-                           weights_path='path/to/weights.hdf5')
-audio = Audio(config)
+model = ForwardTransformer.load_model('/path/to/weights/')
+audio = Audio.from_config(model.config)
 out = model.predict('Please, say something.')
 
 # Convert spectrogram to wav (with griffin lim)
 wav = audio.reconstruct_waveform(out['mel'].numpy().T)
 ```
-## Model Weights
 
+## Model Weights
+Access the pre-trained models with the API call.
+
+Old weights
 | Model URL | Commit | Vocoder Commit|
 |---|---|---|
-|[ljspeech_tts_model](https://public-asai-dl-models.s3.eu-central-1.amazonaws.com/ljspeech_weights_tts.zip) (latest) | 0cd7d33 | aca5990 |
+|[ljspeech_tts_model](https://public-asai-dl-models.s3.eu-central-1.amazonaws.com/ljspeech_weights_tts.zip)| 0cd7d33 | aca5990 |
 |[ljspeech_melgan_forward_model](https://public-asai-dl-models.s3.eu-central-1.amazonaws.com/TransformerTTS/ljspeech_melgan_forward_transformer.zip)| 1c1cb03| aca5990 |
 |[ljspeech_melgan_autoregressive_model_v2](https://public-asai-dl-models.s3.eu-central-1.amazonaws.com/TransformerTTS/ljspeech_melgan_autoregressive_transformer.zip)| 1c1cb03| aca5990 |
 |[ljspeech_wavernn_forward_model](https://public-asai-dl-models.s3.eu-central-1.amazonaws.com/TransformerTTS/ljspeech_wavernn_forward_transformer.zip)| 1c1cb03| 3595219 |
